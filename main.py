@@ -2,37 +2,137 @@
 
 import sys
 
+
+# Valid relations
+relations = ["child", "sibling", "ancestor", "cousin", "unrelated"]
+
+
+# Maps a name to a 2-tuple parents' names or None if person is a root node.
 family_tree = {}
 
+
+# Add a new person to the family tree specified parents or as root node.
+#
+# Parents should already be in tree or this will cause problems.
 def add_person(name, parents=None):
     global family_tree
 
     family_tree[name] = parents
 
 
-def handle_E_query(args):
-    global family_tree
+# Recursively get all ancestors of the specified person.
+#
+# Each ancestor name is mapped to a list of "degrees", which indicate the
+# number of branches back that the ancestor appears in the query target's family
+# tree.
+#
+# It's a list because inbreeding can cause an ancestor to have multiple degrees
+# of relation to a descendant, e.g. father and great grandfather.
+#
+# Don't call this function directly.
+# Call the higher-level get_ancestors function instead.
+def _get_ancestors(name, degree=0):
+    if name not in family_tree:
+        return None
 
-    if args[0] not in family_tree:
-        add_person(args[0])
+    ancestors = {}
 
-    if args[1] not in family_tree:
-        add_person(args[1])
+    if family_tree[name] is not None:
+        parent1, parent2 = family_tree[name]
 
-    if len(args) == 3:
+        ancestors[parent1] = [degree]
+        ancestors[parent2] = [degree]
+
+        parent1_ancestors = _get_ancestors(parent1, degree + 1)
+        parent2_ancestors = _get_ancestors(parent2, degree + 1)
+
+        # If one parent is an ancestor of the other...
+        # Ancestors might have multiple degrees of relation
+        if parent2 in parent1_ancestors:
+            # Add the other degrees for this ancestor
+            ancestors[parent2] += parent1_ancestors[parent2]
+            del parent1_ancestors[parent2]
+
+        # Do the same for other parent
+        if parent1 in parent2_ancestors:
+            ancestors[parent1] += parent2_ancestors[parent1]
+            del parent2_ancestors[parent1]
+
+        # Remove duplicate degrees, to be safe
+        ancestors[parent1] = list(set(ancestors[parent1]))
+        ancestors[parent2] = list(set(ancestors[parent2]))
+
+        # Now add the rest of the ancestors that weren't already present
+        ancestors.update(parent1_ancestors)
+        ancestors.update(parent2_ancestors)
+
+    return ancestors
+
+
+# Get all ancestors of the specified degree.
+#
+# Degree of -1 (default) means get all ancestors.
+def get_ancestors(name, degree=-1):
+    ancestor_degrees = _get_ancestors(name)
+    return [ancestor for ancestor, degrees in ancestor_degrees.items() 
+            if degree in degrees or degree == -1]
+
+
+# Checks if 'ancestor' is an ancestor of 'descendant'.
+#
+# If degree is -1, simply checks for ancestry in general. Otherwise, checks for
+# ancestry of the specified degree.
+def is_ancestor(ancestor, descendant, degree=-1):
+    return ancestor in get_ancestors(descendant, degree)
+
+
+# Handles 'E' queries, which are the only ones that actually modify the tree.
+#
+# No output.
+def handle_E_query(names):
+    if names[0] not in family_tree:
+        add_person(names[0])
+
+    if names[1] not in family_tree:
+        add_person(names[1])
+
+    if len(names) == 3:
         # This should always be true, but just being safe
-        if args[2] not in family_tree:
-            add_person(args[2], parents=(args[0], args[1]))
+        if names[2] not in family_tree:
+            add_person(names[2], parents=(names[0], names[1]))
 
 
-def handle_X_query(args, degree=-1):
-    print("...\n")
+# Handles 'X' queries, including output.
+def handle_X_query(relation, names, degree=-1):
+    # Invalid relation
+    if relation not in relations:
+        return
+
+    if relation == "ancestor":
+        result = "Yes" if is_ancestor(names[0], names[1]) else "No"
+    else:
+        result = "..."
+
+    print("{}\n".format(result))
 
 
-def handle_W_query(args, degree=-1):
-    print("...\n")
+# Handles 'W' queries, including output.
+def handle_W_query(relation, name, degree=-1):
+    if relation not in relations:
+        return
+
+    if relation == "ancestor":
+        result = get_ancestors(name)
+    else:
+        result = ["..."]
+
+    for name in sorted(result):
+        print(name)
+    print()
 
 
+# Prepares input to be passed to query handling functions and performs some
+# preliminary validation.
 def handle_query(query):
     args = query.rstrip().split(' ')
 
@@ -46,32 +146,43 @@ def handle_query(query):
     degree = -1
 
     if query_type == 'X':
-        # Too many/too few arguments
-        if n_args != 3 and n_args != 4:
-            return
+        print(query.rstrip())
 
-        if n_args == 4:
-            # Invalid degree
+        if n_args == 3:
+            relation = args.pop(1)
+
+        elif n_args == 4:
+            relation = args.pop(1)
+
             try:
                 degree = int(args.pop(2))
             except ValueError:
                 return
 
-        print(query.rstrip())
-        handle_X_query(args, degree)
-
-    elif query_type == 'W':
-        if n_args != 2 and n_args != 3:
+        # Too many/too few arguments
+        else:
             return
 
-        if n_args == 3:
+        handle_X_query(relation, args, degree)
+
+    elif query_type == 'W':
+        print(query.rstrip())
+
+        if n_args == 2:
+            relation = args.pop(0)
+
+        elif n_args == 3:
+            relation = args.pop(0)
+
             try:
                 degree = int(args.pop(1))
             except ValueError:
                 return
 
-        print(query.rstrip())
-        handle_W_query(args, degree)
+        else:
+            return
+
+        handle_W_query(relation, args[0], degree)
 
     else: # E
         if n_args != 2 and n_args != 3:
@@ -80,6 +191,8 @@ def handle_query(query):
         handle_E_query(args)
 
 
+# The 'main' program functionality. Simply processes each line of input from
+# stdin as query.
 if __name__ == "__main__":
     try:
         for line in sys.stdin:
