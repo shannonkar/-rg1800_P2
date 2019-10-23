@@ -111,6 +111,19 @@ def get_children(parent):
     return [name for name in family_tree.keys() if is_child(name, parent)]
 
 
+# Checks if person1 is a sibling of person2 (& vice versa).
+def is_sibling(person1, person2):
+    return (person1 != person2 
+            and (family_tree[person1] is not None 
+                 and family_tree[person2] is not None)
+            and set(family_tree[person1]) & set(family_tree[person2]))
+
+
+# Get names of all siblings.
+def get_siblings(person):
+    return [name for name in family_tree.keys() if is_sibling(name, person)]
+
+
 # Handles 'E' queries, which are the only ones that actually modify the tree.
 #
 # No output.
@@ -139,6 +152,8 @@ def handle_X_query(relation, names, degree=-1):
         result = "Yes" if is_unrelated(names[0], names[1]) else "No"
     elif relation == "child":
         result = "Yes" if is_child(names[0], names[1]) else "No"
+    elif relation == "sibling":
+        result = "Yes" if is_sibling(names[0], names[1]) else "No"
     else:
         result = "..."
 
@@ -156,6 +171,8 @@ def handle_W_query(relation, name, degree=-1):
         result = get_unrelated(name)
     elif relation == "child":
         result = get_children(name)
+    elif relation == "sibling":
+        result = get_siblings(name)
     else:
         result = ["..."]
 
@@ -199,6 +216,10 @@ def handle_query(query):
         else:
             return
 
+        # Name not in family tree
+        if any([arg not in family_tree for arg in args]):
+            return
+
         handle_X_query(relation, args, degree)
 
     elif query_type == 'W':
@@ -216,6 +237,9 @@ def handle_query(query):
                 return
 
         else:
+            return
+
+        if args[0] not in family_tree:
             return
 
         handle_W_query(relation, args[0], degree)
