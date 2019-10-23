@@ -309,6 +309,7 @@ if __name__ == "__main__":
     try:
         for line in sys.stdin:
             handle_query(line)
+        print("End of file.\n")
     except KeyboardInterrupt:
         print()
 
