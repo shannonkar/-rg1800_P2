@@ -3,10 +3,6 @@
 import sys
 
 
-# Valid relations
-relations = ["child", "sibling", "ancestor", "cousin", "unrelated"]
-
-
 # Maps a name to a 2-tuple parents' names or None if person is a root node.
 family_tree = {}
 
@@ -111,17 +107,67 @@ def get_children(parent):
     return [name for name in family_tree.keys() if is_child(name, parent)]
 
 
-# Checks if person1 is a sibling of person2 (& vice versa).
-def is_sibling(person1, person2):
-    return (person1 != person2 
-            and (family_tree[person1] is not None 
-                 and family_tree[person2] is not None)
-            and set(family_tree[person1]) & set(family_tree[person2]))
+# Checks if 'sibling' is a sibling of person (& vice versa).
+def is_sibling(sibling, person):
+    return (sibling != person 
+            and (family_tree[sibling] is not None 
+                 and family_tree[person] is not None)
+            and set(family_tree[sibling]) & set(family_tree[person]))
 
 
 # Get names of all siblings.
 def get_siblings(person):
     return [name for name in family_tree.keys() if is_sibling(name, person)]
+
+
+# Get names of all cousins of specified degree (-1 for all cousins).
+def get_cousins(person, degree=-1):
+    all_cousins = [name for name in family_tree.keys()
+                   if name != person
+                    and not is_unrelated(name, person)
+                    and not is_ancestor(name, person)
+                    and not is_ancestor(person, name)]
+    
+    if degree == -1:
+        return all_cousins
+
+    cousins = []
+
+    for cousin in all_cousins:
+        common_ancestors = (set(get_ancestors(person)) &
+                            set(get_ancestors(cousin)))
+
+        # Same common ancestor might have different degree for each cousin
+        ancestor_degrees1 = _get_ancestors(person)
+        ancestor_degrees2 = _get_ancestors(cousin)
+
+        # Replace with minimum degrees for each ancestor
+        ancestor_degrees1 = {
+            k: min(ancestor_degrees1[k]) for k in ancestor_degrees1.keys() 
+            if k in common_ancestors
+        }
+        ancestor_degrees2 = {
+            k: min(ancestor_degrees2[k]) for k in ancestor_degrees2.keys() 
+            if k in common_ancestors
+        }
+
+        # If ancestor has different degree for each cousin, replace with
+        # minimum degree between the two
+        ancestor_degrees = {
+            k: min(ancestor_degrees1[k], ancestor_degrees2[k])
+            for k in common_ancestors
+        }
+
+        # The minimum of all common ancestor degrees is the cousin degree
+        if min(ancestor_degrees.values()) == degree:
+            cousins.append(cousin)
+
+    return cousins
+
+
+# Checks if 'cousin' is a cousin of the specified degree (-1 for any degree).
+def is_cousin(cousin, person, degree=-1):
+    return cousin in get_cousins(person, degree)
 
 
 # Handles 'E' queries, which are the only ones that actually modify the tree.
@@ -142,29 +188,25 @@ def handle_E_query(names):
 
 # Handles 'X' queries, including output.
 def handle_X_query(relation, names, degree=-1):
-    # Invalid relation
-    if relation not in relations:
+    if relation == "ancestor":
+        result = is_ancestor(names[0], names[1])
+    elif relation == "unrelated":
+        result = is_unrelated(names[0], names[1])
+    elif relation == "child":
+        result = is_child(names[0], names[1])
+    elif relation == "sibling":
+        result = is_sibling(names[0], names[1])
+    elif relation == "cousin":
+        result = is_cousin(names[0], names[1], degree)
+    else:
+        # Invalid relation
         return
 
-    if relation == "ancestor":
-        result = "Yes" if is_ancestor(names[0], names[1]) else "No"
-    elif relation == "unrelated":
-        result = "Yes" if is_unrelated(names[0], names[1]) else "No"
-    elif relation == "child":
-        result = "Yes" if is_child(names[0], names[1]) else "No"
-    elif relation == "sibling":
-        result = "Yes" if is_sibling(names[0], names[1]) else "No"
-    else:
-        result = "..."
-
-    print("{}\n".format(result))
+    print("{}\n".format("Yes" if result else "No"))
 
 
 # Handles 'W' queries, including output.
 def handle_W_query(relation, name, degree=-1):
-    if relation not in relations:
-        return
-
     if relation == "ancestor":
         result = get_ancestors(name)
     elif relation == "unrelated":
@@ -173,8 +215,10 @@ def handle_W_query(relation, name, degree=-1):
         result = get_children(name)
     elif relation == "sibling":
         result = get_siblings(name)
+    elif relation == "cousin":
+        result = get_cousins(name, degree)
     else:
-        result = ["..."]
+        return
 
     if result:
         for name in sorted(result):
@@ -193,6 +237,7 @@ def handle_query(query):
 
     # Unrecognized query type
     if query_type not in ['E', 'X', 'W']:
+        print("[!] Invalid query type: '{}\n'".format(query_type))
         return
 
     n_args = len(args)
@@ -208,16 +253,19 @@ def handle_query(query):
             relation = args.pop(1)
 
             try:
-                degree = int(args.pop(2))
+                degree = int(args.pop(1))
             except ValueError:
+                print("[!] Invalid degree: '{}'\n".format(degree))
                 return
 
         # Too many/too few arguments
         else:
+            print("[!] 'X' query takes three or four arguments\n")
             return
 
         # Name not in family tree
         if any([arg not in family_tree for arg in args]):
+            print("[!] All names must be present in the family tree\n")
             return
 
         handle_X_query(relation, args, degree)
@@ -232,20 +280,24 @@ def handle_query(query):
             relation = args.pop(0)
 
             try:
-                degree = int(args.pop(1))
+                degree = int(args.pop(0))
             except ValueError:
+                print("[!] Invalid degree: '{}'\n".format(degree))
                 return
 
         else:
+            print("[!] 'W' query takes two or three arguments\n") 
             return
 
         if args[0] not in family_tree:
+            print("[!] '{}' is not a member of the family tree\n".format(args[0]))
             return
 
         handle_W_query(relation, args[0], degree)
 
     else: # E
         if n_args != 2 and n_args != 3:
+            print("[!] 'E' query takes two or three arguments\n")
             return
         
         handle_E_query(args)
