@@ -31,14 +31,14 @@ def add_person(name, parents=None):
 #
 # Don't call this function directly.
 # Call the higher-level get_ancestors function instead.
-def _get_ancestors(name, degree=0):
-    if name not in family_tree:
+def _get_ancestors(person, degree=0):
+    if person not in family_tree:
         return None
 
     ancestors = {}
 
-    if family_tree[name] is not None:
-        parent1, parent2 = family_tree[name]
+    if family_tree[person] is not None:
+        parent1, parent2 = family_tree[person]
 
         ancestors[parent1] = [degree]
         ancestors[parent2] = [degree]
@@ -72,8 +72,8 @@ def _get_ancestors(name, degree=0):
 # Get all ancestors of the specified degree.
 #
 # Degree of -1 (default) means get all ancestors.
-def get_ancestors(name, degree=-1):
-    ancestor_degrees = _get_ancestors(name)
+def get_ancestors(person, degree=-1):
+    ancestor_degrees = _get_ancestors(person)
     return [ancestor for ancestor, degrees in ancestor_degrees.items() 
             if degree in degrees or degree == -1]
 
@@ -84,6 +84,21 @@ def get_ancestors(name, degree=-1):
 # ancestry of the specified degree.
 def is_ancestor(ancestor, descendant, degree=-1):
     return ancestor in get_ancestors(descendant, degree)
+
+
+# Checks if person1 is unrelated to person2 (bijective so also vice versa)
+def is_unrelated(person1, person2):
+    ancestors1 = get_ancestors(person1)
+    ancestors2 = get_ancestors(person2)
+    return not (person2 in ancestors1 
+                or person1 in ancestors2 
+                or person1 == person2
+                or set(ancestors1) & set(ancestors2)) 
+
+
+# Get names of all family tree members unrelated to 'person'
+def get_unrelated(person):
+    return [name for name in family_tree.keys() if is_unrelated(name, person)]
 
 
 # Handles 'E' queries, which are the only ones that actually modify the tree.
@@ -110,6 +125,8 @@ def handle_X_query(relation, names, degree=-1):
 
     if relation == "ancestor":
         result = "Yes" if is_ancestor(names[0], names[1]) else "No"
+    elif relation == "unrelated":
+        result = "Yes" if is_unrelated(names[0], names[1]) else "No"
     else:
         result = "..."
 
@@ -123,11 +140,16 @@ def handle_W_query(relation, name, degree=-1):
 
     if relation == "ancestor":
         result = get_ancestors(name)
+    elif relation == "unrelated":
+        result = get_unrelated(name)
     else:
         result = ["..."]
 
-    for name in sorted(result):
-        print(name)
+    if result:
+        for name in sorted(result):
+            print(name)
+    else:
+        print("Nobody")
     print()
 
 
