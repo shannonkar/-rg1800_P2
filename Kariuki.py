@@ -202,6 +202,7 @@ def handle_X_query(relation, names, degree=-1):
         result = is_cousin(names[0], names[1], degree)
     else:
         # Invalid relation
+        print("Invalid relation: {}".format(relation))
         return
 
     print("{}\n".format("Yes" if result else "No"))
