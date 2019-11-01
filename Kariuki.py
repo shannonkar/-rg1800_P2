@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Shannon Kariuku, Brendan Kerivan, Alex Petrallo
+# Shannon Kariuki, Brendan Kerivan, Alex Petrallo
 
 import sys
 
